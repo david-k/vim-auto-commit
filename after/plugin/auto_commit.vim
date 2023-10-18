@@ -35,6 +35,8 @@ endfunction
 
 let s:_prev_timer = -1
 function! s:GitAutoCommit()
+	echo "Hello"
+
 	if get(g:, "vim_auto_commit_enabled", 1) == 0
 		return
 	endif
@@ -60,11 +62,6 @@ endfunction
 
 function! s:Pull()
 	let s:pull_job = job_start([s:python_bin, s:sync_script, "pull", s:git_dir])
-endfunction
-
-
-function! s:UploadHandler(channel, msg)
-	echo "App key: ". a:msg
 endfunction
 
 
