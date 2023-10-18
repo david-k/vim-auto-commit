@@ -1,6 +1,10 @@
+let s:python_bin = "python3"
+
 let s:git_dir = g:vim_auto_commit_dir
-let s:enabled = get(g:, "vim_auto_commit_enabled", 1)
-let s:wait_time = get(g:, "vim_auto_commit_wait_time", 30000)  " 30s
+
+let s:this_dir = expand('<sfile>:p:h')
+let s:sync_script = s:this_dir ."/../../sync-repo.py"
+let s:test_script = s:this_dir ."/../../test.py"
 
 
 function! s:CommitCurrentFile(filename)
@@ -31,7 +35,7 @@ endfunction
 
 let s:_prev_timer = -1
 function! s:GitAutoCommit()
-	if s:enabled == 0
+	if get(g:, "vim_auto_commit_enabled", 1) == 0
 		return
 	endif
 
@@ -45,10 +49,31 @@ function! s:GitAutoCommit()
 		call timer_stop(s:_prev_timer)
 	endif
 
-	let s:_prev_timer = timer_start(s:wait_time, { _tid -> s:CommitCurrentFile(l:filename) })
+	let l:wait_time = get(g:, "vim_auto_commit_wait_time", 30000)  " 30s
+	let s:_prev_timer = timer_start(l:wait_time, { _tid -> s:CommitCurrentFile(l:filename) })
 endfunction
+
+
+function! s:Push()
+	let s:pull_job = job_start([s:python_bin, s:sync_script, "push", s:git_dir])
+endfunction
+
+function! s:Pull()
+	let s:pull_job = job_start([s:python_bin, s:sync_script, "pull", s:git_dir])
+endfunction
+
+
+function! s:UploadHandler(channel, msg)
+	echo "App key: ". a:msg
+endfunction
+
+
+command! ACPush call s:Push()
+command! ACPull call s:Pull()
+
 
 augroup VimAutoCommit
 	autocmd!
 	autocmd BufWritePost * call s:GitAutoCommit()
 augroup END
+
