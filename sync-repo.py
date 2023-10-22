@@ -99,6 +99,9 @@ def command_push(repo_dir, instance_name):
 
             run_command(["notify-send", "Notes: Upload successful"])
 
+    except subprocess.CalledProcessError as e:
+        run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
+
     except Exception as e:
         run_command(["notify-send", "-u", "critical", "Uploading notes failed:\n\n" + str(e)])
 
@@ -116,6 +119,9 @@ def command_pull(repo_dir, instance_name):
             counter += 1
 
         run_command(["notify-send", f"Notes: Pulled from {counter} repos"])
+
+    except subprocess.CalledProcessError as e:
+        run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
 
     except Exception as e:
         run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e)])
