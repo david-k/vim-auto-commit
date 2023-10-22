@@ -23,7 +23,7 @@ function! s:CommitCurrentFile(filename)
 	endif
 
 	let l:relative_name = a:filename[strlen(s:git_dir) : ]
-	let l:commit_msg = "auto: ". l:relative_name
+	let l:commit_msg = "auto[". g:vim_auto_commit_instance_name ."]: ". l:relative_name
 	let l:cmd_git_commit = 'git commit -m '. shellescape(l:commit_msg)
 	let l:cmd_git_add = 'git add '. shellescape(a:filename)
 
