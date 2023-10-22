@@ -61,7 +61,7 @@ def pull_from_remote(remote_bundle):
         )
 
         # Pull from bundle
-        run_command(["git", "pull", bundle_filename])
+        run_command(["git", "pull", "--rebase", bundle_filename])
 
 
 # Commands
