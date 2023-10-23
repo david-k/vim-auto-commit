@@ -67,6 +67,11 @@ def pull_from_remote(remote_bundle):
 # Commands
 #===================================================================================================
 def command_push(repo_dir, instance_name):
+    # Need to store:
+    # - Latest local commit that has been pushed to Backblaze
+    # - Number of the latest bundle that has been pulled from Backblaze
+    #
+    # b12.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.dellta.enc
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
             os.chdir(repo_dir)
