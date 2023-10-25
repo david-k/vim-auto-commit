@@ -49,12 +49,12 @@ def get_master_commit_from_bundle(bundle_filename):
 
 def is_first_commit_ancestor_of_second(commit_a, commit_b):
     result = subprocess.run(["git", "merge-base", "--is-ancestor", commit_a, commit_b], capture_output=True, text=True)
-    if result == 0:
+    if result.returncode == 0:
         return True
-    if result == 1:
+    if result.returncode == 1:
         return False
 
-    raise RuntimeError("`git merge-base --is-ancestor` failed: " + result.stderr)
+    raise RuntimeError("`git merge-base --is-ancestor` failed: " + result.stdout + "\n" + result.stderr)
 
 
 # Reading/writing state
