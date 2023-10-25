@@ -31,6 +31,8 @@ function! s:CommitCurrentFile(filename)
 	if v:shell_error != 0
 		echoerr "Committing to git repo failed"
 	endif
+
+	call s:Push()
 endfunction
 
 let s:_prev_timer = -1
