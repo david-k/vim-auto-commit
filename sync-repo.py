@@ -66,7 +66,7 @@ def write_downloaded_bundle_no(bundle_no, repo_dir = "."):
 def start_operation(op_type, latest_uploaded_commit, downloaded_bundle_no, repo_dir = "."):
     try:
         with open(os.path.join(repo_dir, NOTESYNC_DIR, ONGOING_OPERATION_FILE), "x") as file:
-            file.write(op_type + " " + (latest_uploaded_commit or "") + " " + str(downloaded_bundle_no))
+            file.write(op_type + " " + (latest_uploaded_commit or "-") + " " + str(downloaded_bundle_no))
 
     except FileExistsError:
         raise RuntimeError("A previous operation crashed or was terminated prematurely")
@@ -120,7 +120,7 @@ def b2_fileinfo_to_tuple(fileinfo):
 # Pushing bundles
 #-------------------------------------------------------------------------------
 def create_bundle(bundle_filename, already_uploaded_commit_id = None):
-    command = ["git", "bundle", "create", bundle_filename, "master"]
+    command = ["git", "bundle", "create", bundle_filename, "HEAD", "master"]
 
     if already_uploaded_commit_id:
         command += ["^" + already_uploaded_commit_id] # Exclude what we have already uploaded
@@ -149,7 +149,8 @@ def delete_uploaded_file(enc_bundle_name):
     # For some reason I need to specify --recursive and --withWildcard in order to delete a singel file
     deleted_files = run_command(["backblaze-b2", "rm", "--noProgress", "--recursive", "--withWildcard", BUCKET_NAME, enc_bundle_name]).stdout
 
-    if deleted_files.splitlines() != enc_bundle_name:
+    deleted_files = deleted_files.splitlines()
+    if len(deleted_files) == 0 or deleted_files[0] != enc_bundle_name:
         raise RuntimeError("Deleting " + enc_bundle_name + " from Backblaze B2 bucket failed")
 
 
@@ -195,6 +196,7 @@ def command_push(repo_dir, instance_name):
 
             if check_for_collision(instance_name, new_bundle_no):
                 delete_uploaded_file(enc_bundle_name)
+                finish_operation()
                 raise RuntimeError("New data available. Please pull and then push again.")
 
             # Remember the current commit so we that next time we know not to upload it again (saves bandwidth)
