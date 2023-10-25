@@ -36,6 +36,26 @@ def extract_bundle_info(bundle_name: str):
     #      bundle no      instance name
     return int(parts[0]), parts[1]
 
+def get_master_commit_from_bundle(bundle_filename):
+    result = run_command(["git", "bundle", "list-heads", bundle_filename, "refs/heads/master"]).stdout.splitlines()
+    if len(result) == 0:
+        raise RuntimeError("Bundle does not contain master branch ref")
+
+    [commit_id, ref] = result[0].split(" ")
+    if ref != "refs/heads/master":
+        raise RuntimeError("get_master_commit_from_bundle: expected master ref")
+
+    return commit_id
+
+def is_first_commit_ancestor_of_second(commit_a, commit_b):
+    result = subprocess.run(["git", "merge-base", "--is-ancestor", commit_a, commit_b], capture_output=True, text=True)
+    if result == 0:
+        return True
+    if result == 1:
+        return False
+
+    raise RuntimeError("`git merge-base --is-ancestor` failed: " + result.stderr)
+
 
 # Reading/writing state
 #-------------------------------------------------------------------------------
@@ -105,10 +125,15 @@ def pull_from_remote(remote_bundle):
         # Pull from bundle
         run_command(["git", "pull", "--rebase", bundle_filename])
 
+        # If the bundle contains a more recent commit than what we have uploaded, then update the uploaded commit id.
+        # The ancestor check shouldn't actually be needed since we are only ever pulling newer bundles.
+        bundle_commit = get_master_commit_from_bundle(bundle_filename)
+        if uploaded_commit_id == None or is_first_commit_ancestor_of_second(uploaded_commit_id, bundle_commit):
+            write_uploaded_commit_id(bundle_commit)
+
         new_bundle_no, _ = extract_bundle_info(remote_bundle["fileName"])
-        new_commit_id = run_command(["git", "rev-parse", "master"]).stdout.splitlines()[0]
-        write_uploaded_commit_id(new_commit_id)
         write_downloaded_bundle_no(new_bundle_no)
+
         finish_operation()
 
 
@@ -207,7 +232,7 @@ def command_push(repo_dir, instance_name):
             run_command(["notify-send", "Notes: Upload successful"])
 
     except subprocess.CalledProcessError as e:
-        run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
+        run_command(["notify-send", "-u", "critical", "Uploading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
 
     except Exception as e:
         run_command(["notify-send", "-u", "critical", "Uploading notes failed:\n\n" + str(e)])
