@@ -150,17 +150,17 @@ def create_bundle(bundle_filename, already_uploaded_commit_id = None):
     run_command(command)
 
 
-def check_for_collision(instance_name: str, uploaded_bundle_no: int):
+def check_for_collision(uploaded_bundle_name_enc):
+    uploaded_bundle_no, _ = extract_bundle_info(uploaded_bundle_name_enc)
+
     # For the sorting to work correctly, bundle names must start with the bundle number
     bundle_names = sorted(run_command(["backblaze-b2", "ls", BUCKET_NAME]).stdout.splitlines(), reverse=True)
 
     for bundle_name in bundle_names:
-        bundle_no, remote_instance_name = extract_bundle_info(bundle_name)
-        if bundle_no > uploaded_bundle_no:
-            continue
+        bundle_no, _ = extract_bundle_info(bundle_name)
         if bundle_no < uploaded_bundle_no:
             break
-        if bundle_no == uploaded_bundle_no and remote_instance_name != instance_name:
+        if bundle_no == uploaded_bundle_no and bundle_name != uploaded_bundle_name_enc:
             return True
 
     return False
@@ -211,7 +211,7 @@ def command_push(repo_dir, instance_name):
             # Upload encrypted bundle to a Backblaze B2 bucket
             run_command(["backblaze-b2", "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
 
-            if check_for_collision(instance_name, new_bundle_no):
+            if check_for_collision(enc_bundle_name):
                 delete_uploaded_file(enc_bundle_name)
                 raise RuntimeError("New data available. Please pull and then push again.")
 
