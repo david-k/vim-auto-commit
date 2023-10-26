@@ -32,6 +32,7 @@ function! s:CommitCurrentFile(filename)
 		echoerr "Committing to git repo failed"
 	endif
 
+	redrawstatus
 	call s:Push()
 endfunction
 
@@ -57,11 +58,38 @@ endfunction
 
 
 function! s:Push()
-	let s:pull_job = job_start([s:python_bin, s:sync_script, "push", s:git_dir, g:vim_auto_commit_instance_name])
+	let l:command = [s:python_bin, s:sync_script, "push", s:git_dir, g:vim_auto_commit_instance_name]
+	let s:pull_job = job_start(l:command, {"exit_cb": "s:OnCommandExit"})
 endfunction
 
 function! s:Pull()
-	let s:pull_job = job_start([s:python_bin, s:sync_script, "pull", s:git_dir, g:vim_auto_commit_instance_name])
+	let l:command = [s:python_bin, s:sync_script, "pull", s:git_dir, g:vim_auto_commit_instance_name]
+	let s:pull_job = job_start(l:command, {"exit_cb": "s:OnCommandExit"})
+endfunction
+
+function! s:OnCommandExit(job, exit_status)
+	if a:exit_status != 0
+		echohl ErrorMsg | echo "NoteSync push/pull command failed" | echohl None
+	endif
+
+	" Update statusline
+	redrawstatus
+endfunction
+
+
+function! AutoCommitStatusLine()
+	let l:dir = getcwd()
+	if filereadable(l:dir . "/.notesync/latest_uploaded_commit")
+		let l:uploaded_commit_id = readfile(l:dir . "/.notesync/latest_uploaded_commit", 1)[0]
+		silent let l:current_commit_id = trim(system("git rev-parse master"))
+		if l:uploaded_commit_id == l:current_commit_id
+			return "[Notes: pushed]"
+		endif
+
+		return "[Notes: there are unpushed commits]"
+	endif
+
+	return ""
 endfunction
 
 
