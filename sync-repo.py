@@ -219,13 +219,13 @@ def command_push(repo_dir, instance_name):
             write_uploaded_commit_id(current_commit_id)
             write_downloaded_bundle_no(new_bundle_no)
 
-            run_command(["notify-send", "Notes: Upload successful"])
-
     except subprocess.CalledProcessError as e:
         run_command(["notify-send", "-u", "critical", "Uploading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
+        sys.exit(1)
 
     except Exception as e:
         run_command(["notify-send", "-u", "critical", "Uploading notes failed:\n\n" + str(e)])
+        sys.exit(1)
 
 
 def command_pull(repo_dir, instance_name):
@@ -259,9 +259,11 @@ def command_pull(repo_dir, instance_name):
 
     except subprocess.CalledProcessError as e:
         run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
+        sys.exit(1)
 
     except Exception as e:
         run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e)])
+        sys.exit(1)
 
 
 # Main
