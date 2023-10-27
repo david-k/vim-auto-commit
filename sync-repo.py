@@ -97,7 +97,7 @@ def write_downloaded_bundle_no(bundle_no, repo_dir = "."):
 
 # Pulling bundles
 #-------------------------------------------------------------------------------
-def pull_from_remote(remote_bundle):
+def fetch_from_remote(remote_bundle):
     with tempfile.TemporaryDirectory() as temp_dir:
         # Download encrypted bundle from a Backblaze B2 bucket
         enc_bundle_filename = os.path.join(temp_dir, remote_bundle["fileName"])
@@ -118,7 +118,7 @@ def pull_from_remote(remote_bundle):
 
         # Pull from bundle
         run_command(["git", "bundle", "verify", bundle_filename])
-        run_command(["git", "pull", "--rebase", bundle_filename])
+        run_command(["git", "fetch", bundle_filename])
 
         # If the bundle contains a more recent commit than what we have uploaded, then update the uploaded commit id.
         # The ancestor check shouldn't actually be needed since we are only ever pulling newer bundles.
@@ -250,12 +250,13 @@ def command_pull(repo_dir, instance_name):
             if bundle_no <= downloaded_bundle_no:
                 continue
 
-            pull_from_remote(remote_bundle)
+            fetch_from_remote(remote_bundle)
             processed_bundles.add(bundle_no)
 
             counter += 1
 
-        run_command(["notify-send", f"Notes: Pulled {counter} updates"])
+        run_command(["notify-send", f"Notes: Fetched {counter} updates"])
+        run_command(["git", "rebase", "FETCH_HEAD"])
 
     except subprocess.CalledProcessError as e:
         run_command(["notify-send", "-u", "critical", "Downloading notes failed:\n\n" + str(e) + "\n\n" + e.stdout + "\n\n" + e.stderr])
