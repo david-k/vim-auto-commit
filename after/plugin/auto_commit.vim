@@ -32,7 +32,7 @@ function! s:CommitCurrentFile(filename)
 		echoerr "Committing to git repo failed"
 	endif
 
-	redrawstatus
+	call AutoCommitUpdateStatus()
 	call s:Push()
 endfunction
 
@@ -73,23 +73,37 @@ function! s:OnCommandExit(job, exit_status)
 	endif
 
 	" Update statusline
-	redrawstatus
+	call AutoCommitUpdateStatus()
 endfunction
 
 
-function! AutoCommitStatusLine()
+let s:_upload_status = "none"
+
+function! AutoCommitUpdateStatus()
 	let l:dir = getcwd()
 	if filereadable(l:dir . "/.notesync/latest_uploaded_commit")
 		let l:uploaded_commit_id = readfile(l:dir . "/.notesync/latest_uploaded_commit", 1)[0]
 		silent let l:current_commit_id = trim(system("git rev-parse master"))
 		if l:uploaded_commit_id == l:current_commit_id
-			return "[Notes: pushed]"
+			let s:_upload_status = "pushed"
+		else
+			let s:_upload_status = "there are unpushed commits"
 		endif
 
-		return "[Notes: there are unpushed commits]"
+		redrawstatus
+	else
+		let s:_upload_status = "none"
+	endif
+endfunction
+
+" This function is likely going to be called whenever the cursor moves, so it
+" should be as efficient as possible so that it doesn't cause any stutter
+function! AutoCommitStatusLine()
+	if s:_upload_status == "none"
+		return ""
 	endif
 
-	return ""
+	return "[Notes: ". s:_upload_status ."]"
 endfunction
 
 
@@ -100,5 +114,10 @@ command! ACPull call s:Pull()
 augroup VimAutoCommit
 	autocmd!
 	autocmd BufWritePost * call s:GitAutoCommit()
+
+	autocmd WinEnter * call AutoCommitUpdateStatus()
+	autocmd FocusGained * call AutoCommitUpdateStatus()
+	autocmd DirChanged * call AutoCommitUpdateStatus()
 augroup END
+
 
