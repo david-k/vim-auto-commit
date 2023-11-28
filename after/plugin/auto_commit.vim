@@ -81,8 +81,9 @@ let s:_upload_status = "none"
 
 function! AutoCommitUpdateStatus()
 	let l:dir = getcwd()
-	if filereadable(l:dir . "/.notesync/latest_uploaded_commit")
-		let l:uploaded_commit_id = readfile(l:dir . "/.notesync/latest_uploaded_commit", 1)[0]
+	if filereadable(l:dir . "/.notesync/latest_upload_info")
+		let l:upload_info = json_decode(join(readfile(l:dir . "/.notesync/latest_upload_info"), "\n"))
+		let l:uploaded_commit_id = l:upload_info["included_commit_id"]
 		silent let l:current_commit_id = trim(system("git rev-parse master"))
 		if l:uploaded_commit_id == l:current_commit_id
 			let s:_upload_status = "pushed"
