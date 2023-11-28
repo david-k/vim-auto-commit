@@ -104,7 +104,7 @@ def get_required_commit_from_bundle(bundle_filename):
     for i in range(len(result)):
         line = result[i]
         if line == "The bundle requires this ref:":
-            return result[i+1]
+            return result[i+1].strip()
         if line == "The bundle records a complete history.":
             return None
 
