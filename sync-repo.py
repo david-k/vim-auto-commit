@@ -136,11 +136,11 @@ def write_latest_upload_info(config, repo_dir = "."):
 
 # Pulling bundles
 #-------------------------------------------------------------------------------
-def fetch_from_remote(remote_bundle, latest_included_commit_id):
+def fetch_from_remote(remote_bundle_name, latest_included_commit_id):
     with tempfile.TemporaryDirectory() as temp_dir:
         # Download encrypted bundle from a Backblaze B2 bucket
-        enc_bundle_filename = os.path.join(temp_dir, remote_bundle["fileName"])
-        run_command(["backblaze-b2", "download_file_by_name", BUCKET_NAME, remote_bundle["fileName"], enc_bundle_filename])
+        enc_bundle_filename = os.path.join(temp_dir, remote_bundle_name)
+        run_command(["backblaze-b2", "download_file_by_name", BUCKET_NAME, remote_bundle_name, enc_bundle_filename])
 
         # Decrypt bundle
         bundle_filename = os.path.join(temp_dir, "decrypted.bundle")
@@ -166,7 +166,7 @@ def fetch_from_remote(remote_bundle, latest_included_commit_id):
         bundle_commit = get_master_commit_from_bundle(bundle_filename)
         if latest_included_commit_id == None or is_first_commit_ancestor_of_second(latest_included_commit_id, bundle_commit):
             write_latest_upload_info({
-                "bundle_name": remote_bundle["fileName"],
+                "bundle_name": remote_bundle_name,
                 "bundle_size": os.path.getsize(bundle_filename),
                 "included_commit_id": bundle_commit,
                 "required_commit_id": get_required_commit_from_bundle(bundle_filename),
@@ -199,25 +199,42 @@ def encrypt_bundle(bundle_filename, enc_bundle_filename):
     )
 
 
-
-def retrieve_uploaded_bundle_names():
-    # Retrieve list of all uploaded bundles
+# Fetches the canonical chain of bundles from the server, filtering out any conflicting left-over bundles
+def fetch_bundle_chain():
     remote_bundle_files = json.loads(run_command(["backblaze-b2", "ls", BUCKET_NAME, "--json"]).stdout)
 
     def bundle_sort_key(fileinfo):
         info = extract_bundle_info(fileinfo["fileName"])
-        # Use negative timestampt so that smaller timestampts come first (we do a reverse sort)
-        return (info.number, info.generation, -fileinfo["uploadTimestamp"], info.instance_name)
+        return (info.number, info.generation, fileinfo["uploadTimestamp"], info.instance_name)
 
-    remote_bundle_files.sort(key=bundle_sort_key, reverse=True)
+    remote_bundle_files.sort(key = bundle_sort_key)
 
-    return list(map(lambda info: info["fileName"], remote_bundle_files))
+    bundle_chain = []
+    processed_bundles = set()
+    bundle_number_done = -1
+    for remote_bundle_file in remote_bundle_files:
+        remote_bundle = extract_bundle_info(remote_bundle_file["fileName"])
 
+        if (remote_bundle.number, remote_bundle.generation) in processed_bundles:
+            # If there are multiple bundles with the same bundle number we only process the first one.
+            # The second one would be a left-over of a conflicting push operation and should be removed.
+            continue
+
+        if remote_bundle.number <= bundle_number_done:
+            continue
+
+        if remote_bundle.is_final_gen:
+            bundle_number_done = remote_bundle.number
+
+        processed_bundles.add((remote_bundle.number, remote_bundle.generation))
+        bundle_chain.append(remote_bundle_file["fileName"])
+
+    return bundle_chain
 
 
 
 def check_for_conflict(uploaded_bundle_name_enc):
-    remote_bundle_names = retrieve_uploaded_bundle_names()
+    remote_bundle_names = list(reversed(fetch_bundle_chain()))
 
     if not remote_bundle_names:
         # remote_bundle_names should contain at least uploaded_bundle_name_enc
@@ -364,13 +381,7 @@ def command_pull(repo_dir, instance_name):
         os.chdir(repo_dir)
 
         counter = 0
-        remote_bundle_files = json.loads(run_command(["backblaze-b2", "ls", BUCKET_NAME, "--json"]).stdout)
-
-        def bundle_sort_key(fileinfo):
-            info = extract_bundle_info(fileinfo["fileName"])
-            return (info.number, info.generation, fileinfo["uploadTimestamp"], info.instance_name)
-
-        remote_bundle_files.sort(key = bundle_sort_key)
+        bundle_chain = fetch_bundle_chain()
 
         latest_upload_info = read_latest_upload_info()
         latest_bundle_info = None
@@ -379,23 +390,16 @@ def command_pull(repo_dir, instance_name):
             latest_bundle_info = extract_bundle_info(latest_upload_info["bundle_name"])
             latest_included_commit_id = latest_upload_info["included_commit_id"]
 
-        processed_bundles = set()
-        for remote_bundle_file in remote_bundle_files:
-            remote_bundle = extract_bundle_info(remote_bundle_file["fileName"])
+        for remote_bundle_name in bundle_chain:
+            remote_bundle = extract_bundle_info(remote_bundle_name)
 
             if latest_bundle_info:
                 # Skip everything we already know about
                 if (remote_bundle.number, remote_bundle.generation) <= (latest_bundle_info.number, latest_bundle_info.generation):
                     continue
 
-            if (remote_bundle.number, remote_bundle.generation) in processed_bundles:
-                # If there are multiple bundles with the same bundle number we only process the first one.
-                # The second one would be a left-over of a conflicting push operation and should be removed.
-                continue
 
-            latest_included_commit_id = fetch_from_remote(remote_bundle_file, latest_included_commit_id)
-            processed_bundles.add((remote_bundle.number, remote_bundle.generation))
-
+            latest_included_commit_id = fetch_from_remote(remote_bundle_name, latest_included_commit_id)
             counter += 1
 
         run_command(["git", "rebase", "FETCH_HEAD"])
