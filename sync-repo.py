@@ -167,7 +167,6 @@ def fetch_from_remote(remote_bundle_name, latest_included_commit_id):
         if latest_included_commit_id == None or is_first_commit_ancestor_of_second(latest_included_commit_id, bundle_commit):
             write_latest_upload_info({
                 "bundle_name": remote_bundle_name,
-                "bundle_size": os.path.getsize(bundle_filename),
                 "included_commit_id": bundle_commit,
                 "required_commit_id": get_required_commit_from_bundle(bundle_filename),
             })
@@ -276,7 +275,6 @@ def delete_uploaded_file(enc_bundle_name):
 #===================================================================================================
 # latest_upload_info:
 # - bundle_name
-# - bundle_size
 # - included_commit_id: the latest included commit id
 # - required_commit_id
 def command_push(repo_dir, instance_name):
@@ -290,15 +288,15 @@ def command_push(repo_dir, instance_name):
             latest_included_commit_id = None
             latest_bundle_number = 0
             latest_bundle_generation = 0
-            latest_bundle_size = 0
+            latest_bundle_final = False
             if latest_upload_info:
 
                 latest_included_commit_id = latest_upload_info["included_commit_id"]
-                latest_bundle_size = latest_upload_info["bundle_size"]
 
                 latest_bundle_info = extract_bundle_info(latest_upload_info["bundle_name"])
                 latest_bundle_number = latest_bundle_info.number
                 latest_bundle_generation = latest_bundle_info.generation
+                latest_bundle_final = latest_bundle_info.is_final_gen
 
 
             if latest_included_commit_id == current_commit_id:
@@ -310,7 +308,7 @@ def command_push(repo_dir, instance_name):
 
             # Create a new bundle if this is the first time or the previous bundle exceeded the
             # target bundle size
-            if not latest_upload_info or latest_bundle_size > TARGET_BUNDLE_SIZE:
+            if not latest_upload_info or latest_bundle_final:
                 # Export git repo into a bundle
                 bundle_filename = os.path.join(temp_dir, "bundle")
                 create_bundle(bundle_filename, latest_included_commit_id)
@@ -333,7 +331,6 @@ def command_push(repo_dir, instance_name):
 
                 write_latest_upload_info({
                     "bundle_name": enc_bundle_name,
-                    "bundle_size": bundle_size,
                     "included_commit_id": current_commit_id,
                     "required_commit_id": latest_included_commit_id,
                 })
@@ -362,7 +359,6 @@ def command_push(repo_dir, instance_name):
 
                 write_latest_upload_info({
                     "bundle_name": enc_bundle_name,
-                    "bundle_size": os.path.getsize(enc_bundle_filename),
                     "included_commit_id": current_commit_id,
                     "required_commit_id": latest_upload_info["required_commit_id"],
                 })
