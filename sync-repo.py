@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 
 NOTESYNC_DIR = ".notesync"
-TARGET_BUNDLE_SIZE = 20*1024
+TARGET_BUNDLE_SIZE = 50*1024
 BUCKET_NAME = "notes-1234"
 
 # Utils
