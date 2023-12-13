@@ -1,7 +1,7 @@
 let s:python_bin = "python3"
 
 let s:this_dir = expand('<sfile>:p:h')
-let s:sync_script = s:this_dir ."/../../sync-repo.py"
+let s:sync_script = s:this_dir ."/../sync-repo.py"
 
 
 function! s:CommitCurrentFile(filename)
