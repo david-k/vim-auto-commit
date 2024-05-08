@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 # Config
 #===================================================================================================
-VERBOSE = True
+VERBOSE = False
 BACKBLAZE_BIN = "bbb2"
 NOTESYNC_DIR = ".notesync"
 TARGET_BUNDLE_SIZE = 50*1024
