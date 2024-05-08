@@ -11,6 +11,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 
+BACKBLAZE_BIN = "bbb2"
 NOTESYNC_DIR = ".notesync"
 TARGET_BUNDLE_SIZE = 50*1024
 BUCKET_NAME = "notes-1234"
@@ -140,7 +141,7 @@ def fetch_from_remote(remote_bundle_name, latest_included_commit_id):
     with tempfile.TemporaryDirectory() as temp_dir:
         # Download encrypted bundle from a Backblaze B2 bucket
         enc_bundle_filename = os.path.join(temp_dir, remote_bundle_name)
-        run_command(["backblaze-b2", "download_file_by_name", BUCKET_NAME, remote_bundle_name, enc_bundle_filename])
+        run_command([BACKBLAZE_BIN, "download_file_by_name", BUCKET_NAME, remote_bundle_name, enc_bundle_filename])
 
         # Decrypt bundle
         bundle_filename = os.path.join(temp_dir, "decrypted.bundle")
@@ -200,7 +201,7 @@ def encrypt_bundle(bundle_filename, enc_bundle_filename):
 
 # Fetches the canonical chain of bundles from the server, filtering out any conflicting left-over bundles
 def fetch_bundle_chain():
-    remote_bundle_files = json.loads(run_command(["backblaze-b2", "ls", BUCKET_NAME, "--json"]).stdout)
+    remote_bundle_files = json.loads(run_command([BACKBLAZE_BIN, "ls", BUCKET_NAME, "--json"]).stdout)
 
     def bundle_sort_key(fileinfo):
         info = extract_bundle_info(fileinfo["fileName"])
@@ -264,7 +265,7 @@ def check_for_conflict(uploaded_bundle_name_enc):
 
 def delete_uploaded_file(enc_bundle_name):
     # For some reason I need to specify --recursive and --withWildcard in order to delete a singel file
-    deleted_files = run_command(["backblaze-b2", "rm", "--noProgress", "--recursive", "--withWildcard", BUCKET_NAME, enc_bundle_name]).stdout
+    deleted_files = run_command([BACKBLAZE_BIN, "rm", "--noProgress", "--recursive", "--withWildcard", BUCKET_NAME, enc_bundle_name]).stdout
 
     deleted_files = deleted_files.splitlines()
     if len(deleted_files) == 0 or deleted_files[0] != enc_bundle_name:
@@ -323,7 +324,7 @@ def command_push(repo_dir, instance_name):
                 encrypt_bundle(bundle_filename, enc_bundle_filename)
 
                 # Upload encrypted bundle to a Backblaze B2 bucket
-                run_command(["backblaze-b2", "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
+                run_command([BACKBLAZE_BIN, "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
 
                 if check_for_conflict(enc_bundle_name):
                     delete_uploaded_file(enc_bundle_name)
@@ -351,7 +352,7 @@ def command_push(repo_dir, instance_name):
                 encrypt_bundle(bundle_filename, enc_bundle_filename)
 
                 # Upload encrypted bundle to a Backblaze B2 bucket
-                run_command(["backblaze-b2", "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
+                run_command([BACKBLAZE_BIN, "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
 
                 if check_for_conflict(enc_bundle_name):
                     delete_uploaded_file(enc_bundle_name)
