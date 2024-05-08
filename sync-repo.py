@@ -24,6 +24,9 @@ def eprint(*args, **kwargs):
 def run_command(cmd, stdin=None):
     return subprocess.run(cmd, capture_output=True, check=True, text=True, input=stdin)
 
+def run_command_get_exit_code(cmd, stdin=None):
+    return subprocess.run(cmd, capture_output=True, text=True, input=stdin).returncode
+
 def read_file(filename):
     with open(filename) as f:
         return f.read()
@@ -399,7 +402,14 @@ def command_pull(repo_dir, instance_name):
             latest_included_commit_id = fetch_from_remote(remote_bundle_name, latest_included_commit_id)
             counter += 1
 
-        run_command(["git", "rebase", "FETCH_HEAD"])
+        # Usually, we want to rebase. However, if the repo is empty, then HEAD is not set, and rebasing fails.
+        # To check if the repo is empty we run `git log` which fails if there are no commits yet. If
+        # this is the case we do a merge which works even if HEAD is not set.
+        if run_command_get_exit_code(["git", "log"]) == 0:
+            run_command(["git", "rebase", "FETCH_HEAD"])
+        else:
+            run_command(["git", "merge", "FETCH_HEAD"])
+
         run_command(["notify-send", f"Notes: Pulled {counter} updates"])
 
     except subprocess.CalledProcessError as e:
