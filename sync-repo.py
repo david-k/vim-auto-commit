@@ -11,15 +11,23 @@ from pathlib import Path
 from dataclasses import dataclass
 
 
+# Config
+#===================================================================================================
+VERBOSE = True
 BACKBLAZE_BIN = "bbb2"
 NOTESYNC_DIR = ".notesync"
 TARGET_BUNDLE_SIZE = 50*1024
 BUCKET_NAME = "notes-1234"
 
+
 # Utils
 #===================================================================================================
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+def verbose_print(*args, **kwargs):
+    if VERBOSE:
+        print(">", *args, file=sys.stderr, **kwargs)
 
 def run_command(cmd, stdin=None):
     return subprocess.run(cmd, capture_output=True, check=True, text=True, input=stdin)
@@ -206,6 +214,10 @@ def encrypt_bundle(bundle_filename, enc_bundle_filename):
 def fetch_bundle_chain():
     remote_bundle_files = json.loads(run_command([BACKBLAZE_BIN, "ls", BUCKET_NAME, "--json"]).stdout)
 
+    if VERBOSE:
+        filenames = [b["fileName"] for b in remote_bundle_files]
+        verbose_print("Remote files:", filenames)
+
     def bundle_sort_key(fileinfo):
         info = extract_bundle_info(fileinfo["fileName"])
         return (info.number, info.generation, fileinfo["uploadTimestamp"], info.instance_name)
@@ -241,7 +253,9 @@ def check_for_conflict(uploaded_bundle_name_enc):
 
     if not remote_bundle_names:
         # remote_bundle_names should contain at least uploaded_bundle_name_enc
-        raise RuntimeError("retrieve_previously_uploaded_bundle_info: List of files is unexpectedly empty")
+        raise RuntimeError("check_for_conflict: Bundle chain is unexpectedly empty")
+
+    verbose_print("Remote bundle chain:", remote_bundle_names);
 
     if remote_bundle_names[0] != uploaded_bundle_name_enc:
         return True
@@ -267,12 +281,12 @@ def check_for_conflict(uploaded_bundle_name_enc):
 
 
 def delete_uploaded_file(enc_bundle_name):
-    # For some reason I need to specify --recursive and --withWildcard in order to delete a singel file
-    deleted_files = run_command([BACKBLAZE_BIN, "rm", "--noProgress", "--recursive", "--withWildcard", BUCKET_NAME, enc_bundle_name]).stdout
+    verbose_print("Deleting uploaded file:", enc_bundle_name)
 
-    deleted_files = deleted_files.splitlines()
-    if len(deleted_files) == 0 or deleted_files[0] != enc_bundle_name:
-        raise RuntimeError("Deleting " + enc_bundle_name + " from Backblaze B2 bucket failed")
+    # For some reason I need to specify --recursive and --withWildcard in order to delete a singel file
+    # Also, there does not seem to be any way to check whether the deletion was successful (process
+    # always exits with an exit code of zero)
+    run_command([BACKBLAZE_BIN, "rm", "--no-progress", "--recursive", "--with-wildcard", BUCKET_NAME, enc_bundle_name]).stdout
 
 
 # Commands
@@ -313,6 +327,8 @@ def command_push(repo_dir, instance_name):
             # Create a new bundle if this is the first time or the previous bundle exceeded the
             # target bundle size
             if not latest_upload_info or latest_bundle_final:
+                verbose_print("Creating new bundle")
+
                 # Export git repo into a bundle
                 bundle_filename = os.path.join(temp_dir, "bundle")
                 create_bundle(bundle_filename, latest_included_commit_id)
@@ -326,10 +342,13 @@ def command_push(repo_dir, instance_name):
                 enc_bundle_filename = os.path.join(temp_dir, enc_bundle_name)
                 encrypt_bundle(bundle_filename, enc_bundle_filename)
 
+                verbose_print("Uploading ", enc_bundle_name);
+
                 # Upload encrypted bundle to a Backblaze B2 bucket
                 run_command([BACKBLAZE_BIN, "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
 
                 if check_for_conflict(enc_bundle_name):
+                    verbose_print("Conflict detected")
                     delete_uploaded_file(enc_bundle_name)
                     raise RuntimeError("New data available. Please pull and then push again.")
 
@@ -341,6 +360,8 @@ def command_push(repo_dir, instance_name):
 
             # Update latest bundle in-place
             else:
+                verbose_print("Updating latest bundle in place")
+
                 # Export git repo into a bundle
                 bundle_filename = os.path.join(temp_dir, "bundle")
                 create_bundle(bundle_filename, latest_upload_info["required_commit_id"])
@@ -354,10 +375,13 @@ def command_push(repo_dir, instance_name):
                 enc_bundle_filename = os.path.join(temp_dir, enc_bundle_name)
                 encrypt_bundle(bundle_filename, enc_bundle_filename)
 
+                verbose_print("Uploading ", enc_bundle_name);
+
                 # Upload encrypted bundle to a Backblaze B2 bucket
-                run_command([BACKBLAZE_BIN, "upload_file", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
+                run_command([BACKBLAZE_BIN, "upload_file", "--no-progress", BUCKET_NAME, enc_bundle_filename, enc_bundle_name])
 
                 if check_for_conflict(enc_bundle_name):
+                    verbose_print("Conflict detected")
                     delete_uploaded_file(enc_bundle_name)
                     raise RuntimeError("New data available. Please pull and then push again.")
 
