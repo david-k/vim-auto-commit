@@ -11,6 +11,12 @@ from pathlib import Path
 from dataclasses import dataclass
 
 
+#
+# HAVE A LOOK AT: https://github.com/awslabs/git-remote-s3
+# - This implements what I'm doing now but as a git-remote-helper, which is something I wanted to implement for some time
+#
+
+
 # Config
 #===================================================================================================
 VERBOSE = False

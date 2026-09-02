@@ -4,27 +4,20 @@ let s:this_dir = expand('<sfile>:p:h')
 let s:sync_script = s:this_dir ."/../sync-repo.py"
 
 
-function! s:CommitCurrentFile(filename)
-	" Don't auto-commit when editing files inside .git/ (like .git/COMMIT_EDITMSG)
-	if stridx(a:filename, g:vim_auto_commit_dir .'.git/') == 0
-		return
-	endif
-
+function! s:CommitCurrentFile()
 	let l:cmd_cd = 'cd '. shellescape(g:vim_auto_commit_dir)
 
 	" `git diff --exit-code` succeeds if there are no changes, in which case
 	" we return early
-	call system(l:cmd_cd .' && git diff --exit-code '. shellescape(a:filename))
+	call system(l:cmd_cd .' && git diff --exit-code')
 	if v:shell_error == 0
 		return
 	endif
 
-	let l:relative_name = a:filename[strlen(g:vim_auto_commit_dir) : ]
-	let l:commit_msg = "[". g:vim_auto_commit_instance_name ."] auto-update: ". l:relative_name
+	let l:commit_msg = "[". g:vim_auto_commit_instance_name ."] auto-commit"
 	let l:cmd_git_commit = 'git commit -m '. shellescape(l:commit_msg)
-	let l:cmd_git_add = 'git add '. shellescape(a:filename)
 
-	call system(l:cmd_cd .' && '. l:cmd_git_add .' && '. l:cmd_git_commit)
+	call system(l:cmd_cd .' && git add -u && '. l:cmd_git_commit)
 	if v:shell_error != 0
 		echoerr "Committing to git repo failed"
 	endif
@@ -52,7 +45,7 @@ function! s:GitAutoCommit()
 	endif
 
 	let l:wait_time = get(g:, "vim_auto_commit_wait_time", 30000)  " 30s
-	let s:_prev_timer = timer_start(l:wait_time, { _tid -> s:CommitCurrentFile(l:filename) })
+	let s:_prev_timer = timer_start(l:wait_time, { _tid -> s:CommitCurrentFile() })
 endfunction
 
 
@@ -77,11 +70,23 @@ endfunction
 
 
 let s:_upload_status = "none"
+let s:_upload_info_filename = ""
 
-function! AutoCommitUpdateStatus()
+function! OnDirChange()
 	let l:dir = getcwd()
 	if filereadable(l:dir . "/.notesync/latest_upload_info")
-		let l:upload_info = json_decode(join(readfile(l:dir . "/.notesync/latest_upload_info"), "\n"))
+		let s:_upload_info_filename = l:dir . "/.notesync/latest_upload_info"
+	else
+		let s:_upload_info_filename = ""
+	endif
+
+	call AutoCommitUpdateStatus()
+endfunction
+
+
+function! AutoCommitUpdateStatus()
+	if s:_upload_info_filename != ""
+		let l:upload_info = json_decode(join(readfile(s:_upload_info_filename), "\n"))
 		let l:uploaded_commit_id = l:upload_info["included_commit_id"]
 		silent let l:current_commit_id = trim(system("git rev-parse master"))
 		if l:uploaded_commit_id == l:current_commit_id
@@ -114,10 +119,14 @@ command! ACPull call s:Pull()
 augroup VimAutoCommit
 	autocmd!
 	autocmd BufWritePost * call s:GitAutoCommit()
-
-	autocmd WinEnter * call AutoCommitUpdateStatus()
+	autocmd DirChanged * call OnDirChange()
 	autocmd FocusGained * call AutoCommitUpdateStatus()
-	autocmd DirChanged * call AutoCommitUpdateStatus()
+
+	" Currently, AutoCommitUpdateStatus() is too expanseive when s:_upload_info_filename is set.
+	" The result: when using e.g. `:vnew` the contents of the previous buffer
+	" are visible in the new window for a split seconds. Long enough to be
+	" annoying.
+	"autocmd WinEnter * call AutoCommitUpdateStatus()
 augroup END
 
 
